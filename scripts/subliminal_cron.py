@@ -1,4 +1,4 @@
-# Python script that handles external subtitles with Subliminal's API
+# [DEPRECATED] Python script that handles external subtitles with Subliminal's API
 
 from datetime import timedelta
 from operator import itemgetter
@@ -29,8 +29,9 @@ except IndexError:
 
 providers_list = ["sucha", "podnapisi", "opensubtitles", "argenteam"]
 providers_auth = {
-    "opensubtitles": {"username": "whenerespat", "password": os.environ.get("OPEN_PWD")}
+    "opensubtitles": {"username": "averroista", "password": os.environ.get("OPEN_PWD")}
 }
+
 CACHE_FILE = os.environ.get("HOME") + "/.dogpile.cache.db"
 SCORE_DB = os.environ.get("HOME") + "/.score_subliminal.db"
 

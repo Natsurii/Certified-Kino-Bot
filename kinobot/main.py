@@ -1,4 +1,5 @@
 import datetime
+import logging
 import srt
 import json
 import os
@@ -20,6 +21,7 @@ import kinobot_utils.normal_kino as normal_kino
 
 FACEBOOK = os.environ.get("FACEBOOK")
 FILM_COLLECTION = os.environ.get("FILM_COLLECTION")
+LOG = os.environ.get("KINOLOG")
 TV_COLLECTION = os.environ.get("TV_COLLECTION")
 MOVIE_JSON = os.environ.get("MOVIE_JSON")
 TV_JSON = os.environ.get("TV_JSON")
@@ -31,11 +33,19 @@ FB = GraphAPI(FACEBOOK)
 tiempo = datetime.datetime.now()
 tiempo_str = tiempo.strftime("Automatically executed at %H:%M:%S GMT-4")
 
-PUBLISHED = True
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(module)s.%(levelname)s: %(message)s",
+    datefmt="%H:%M:%S",
+    handlers=[logging.FileHandler(LOG), logging.StreamHandler()],
+)
+
+
+PUBLISHED = False
 if PUBLISHED:
-    print("Published mode")
+    logging.info("STARTING: Published mode")
 else:
-    print("Unpublished mode")
+    logging.info("STARTING: Unpublished mode")
 
 
 def get_normal():
@@ -111,7 +121,7 @@ def post_request(
             movie_info["category"],
         )
 
-    print("Posting")
+    logging.info("Posting")
     mes = (
         "{}\n\nRequested by {} (!req {})\n\n"
         "{}\nThis bot is open source: https://github.com/vitiko98/Certified-Kino-Bot".format(
@@ -136,14 +146,15 @@ def comment_post(postid):
     com = (
         "Complete list: https://kino.caretas.club\n"
         '\nRequest examples:\n"!req Taxi Driver [you talking to me?]"\n"!req Stalker [20:34]"\n'
-        '"!req The Wire s01e01 [this america, man] [40:30]"'
+        "!req A Man Escaped [24:12] [54:10]"
+        #'"!req The Wire s01e01 [this america, man] [40:30]"'
     )
     FB.post(
         path=postid + "/comments",
         source=open("/tmp/tmp_collage.png", "rb"),
         message=com,
     )
-    print(postid)
+    logging.info(postid)
 
 
 def notify(comment_id, content, reason=None):
@@ -156,7 +167,6 @@ def notify(comment_id, content, reason=None):
             " and episodes: https://kino.caretas.club"
         )
     else:
-        print("Kinobot returned an error. Reason: {}".format(reason))
         noti = (
             "Kinobot returned an error: {}. Please, don't forget "
             "to check the list of available films, episodes and instructions"
@@ -167,7 +177,7 @@ def notify(comment_id, content, reason=None):
     try:
         FB.post(path=comment_id + "/comments", message=noti)
     except facepy.exceptions.FacebookError:
-        print("Comment was deleted")
+        logging.info("Comment was deleted")
 
 
 def write_js(slctd):
@@ -181,11 +191,14 @@ def handle_requests(slctd):
         m = slctd[inc]
         if not m["used"]:
             m["used"] = True
-            print("Request: " + m["movie"])
+            logging.info("Request: " + m["movie"].upper())
             try:
+                # Avoid too long requests
                 if len(m["content"]) > 6:
-                    raise AttributeError
-                is_episode = m["episode"]
+                    raise TypeError
+                # Avoid episodes (for now)
+                if m["episode"]:
+                    raise TypeError
                 is_multiple = True if len(m["content"]) > 1 else False
                 Frames = []
                 for frame in m["content"]:
@@ -195,7 +208,7 @@ def handle_requests(slctd):
                             frame,
                             MOVIE_JSON,
                             TV_JSON,
-                            is_episode=is_episode,
+                            is_episode=False,
                             multiple=is_multiple,
                         )
                     )
@@ -221,29 +234,17 @@ def handle_requests(slctd):
                     discriminator,
                     m,
                     tiempo,
-                    is_episode,
+                    False,
                 )
                 write_js(slctd)
                 comment_post(post_id)
                 notify(m["id"], m["comment"])
                 break
-            except (
-                kino_exceptions.OffensiveWord,
-                kino_exceptions.DuplicateRequest,
-                kino_exceptions.NotEnoughSearchScore,
-                TypeError,
-                UnicodeDecodeError,
-                NameError,
-                IndexError,
-                cv2.error,
-                srt.SRTParseError,
-                FileNotFoundError,
-                AttributeError,
-            ) as error:
-                write_js(slctd)
+            except Exception as error:
                 message = type(error).__name__
+                logging.error(message)
+                write_js(slctd)
                 notify(m["id"], m["comment"], reason=message)
-
         inc += 1
         if inc == len(slctd):
             get_normal()
@@ -257,6 +258,7 @@ def main():
         handle_requests(slctd)
     else:
         get_normal()
+    logging.info("FINISHED\n" + "#" * 70)
 
 
 if __name__ == "__main__":
